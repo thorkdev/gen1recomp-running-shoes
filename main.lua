@@ -57,9 +57,40 @@ return function(mod)
     if not (ctx.save and ctx.save.flags and ctx.save.flags[UNLOCKED]) then
       return next(frames, ctx)
     end
+    -- OFF: the OPTIONS toggle below only gates the speed boost, never the
+    -- quest itself -- UNLOCKED still gets set by Mom's script either way,
+    -- so switching this back on later doesn't require replaying anything.
+    if not mod.save:get("enabled", true) then
+      return next(frames, ctx)
+    end
     if ctx.input and ctx.input.isDown and ctx.input:isDown("b") then
       return math.max(1, math.floor(frames / RUN_SPEED))
     end
     return next(frames, ctx)
+  end)
+
+  -- ------- OPTIONS row, but only once there's something to toggle: a
+  -- save that hasn't met Mom with the parcel yet has no UNLOCKED flag, so
+  -- offering a switch for a feature the player doesn't have yet would just
+  -- be confusing (same reasoning as the vanilla POKéDEX/LINK start-menu
+  -- rows, which are conditioned on save state the same way).
+  mod.hooks:wrap("ui.options.rows", function(next, game, rows)
+    local out = next(game, rows)
+    if type(out) ~= "table" then return out end
+    if not (game.save and game.save.flags and game.save.flags[UNLOCKED]) then
+      return out
+    end
+    out[#out + 1] = {
+      id = "running_shoes_enabled",
+      label = "RUNNING SHOES",
+      value = function()
+        return mod.save:get("enabled", true) and "ON" or "OFF"
+      end,
+      step = function()
+        mod.save:set("enabled", not mod.save:get("enabled", true))
+        return true
+      end,
+    }
+    return out
   end)
 end
