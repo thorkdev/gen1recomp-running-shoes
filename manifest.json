@@ -9,7 +9,7 @@
   "category": "GAMEPLAY",
   "priority": 100,
   "dependencies": [],
-  "optional_dependencies": ["DRAMATIC_SHAPE"],
+  "optional_dependencies": ["DRAMATIC_SHAPE", "BATTLE_ART_VOXEL_FORK"],
   "conflicts": [],
   "incompatible": [],
   "experimental": false,

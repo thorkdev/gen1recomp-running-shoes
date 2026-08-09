@@ -69,20 +69,27 @@ return function(mod)
     return next(frames, ctx)
   end)
 
-  -- ------- dramatic-shape integration
+  -- ------- voxel overworld integration (dramatic-shape / battle art voxel fork)
   --
   -- The voxel mod's 1ST/3RD free-roam camera rungs replace grid movement
-  -- outright (dramatic-shape/lib/FreeMove.lua): OverworldState:handleInput
-  -- gets wrapped so FreeMove.tick drives the player's continuous world
-  -- position directly and never calls Player:beginStep -- which is the
-  -- only place movement.speed above ever fires from. Standing on the
-  -- grid (rung off) still goes through the hook above as normal; this is
-  -- purely the free-roam case.
+  -- outright (lib/FreeMove.lua): OverworldState:handleInput gets wrapped
+  -- so FreeMove.tick drives the player's continuous world position
+  -- directly and never calls Player:beginStep -- which is the only place
+  -- movement.speed above ever fires from. Standing on the grid (rung
+  -- off) still goes through the hook above as normal; this is purely the
+  -- free-roam case.
   --
-  -- Optional: this whole block is a no-op unless dramatic-shape (manifest
-  -- id DRAMATIC_SHAPE) is installed and has already run. mod.exports.lib
-  -- is its entire module namespace, exported wholesale (main.lua:
-  -- `mod.exports.lib = V`) -- the sanctioned way another mod reaches in.
+  -- Optional: this whole block is a no-op unless one of the two voxel
+  -- mods is installed and has already run -- dramatic-shape (manifest id
+  -- DRAMATIC_SHAPE) or its BATTLE_ART_VOXEL_FORK fork, checked in that
+  -- order. Both ship FreeMove/FirstPerson with the same WALK/BIKE
+  -- constants and tick(state)/frame(me, cx, cy, vw, vh) signatures --
+  -- the fork rewrote the battle presentation, not this seam -- so one
+  -- integration covers either. mod.exports.lib is the module's entire
+  -- namespace, exported wholesale by both (main.lua: `mod.exports.lib =
+  -- V`) -- the sanctioned way another mod reaches in. Only one of the
+  -- two would ever be installed at once in practice (same hotkeys, same
+  -- overworld renderer), so precedence between them doesn't matter.
   -- bobActive/bobPhase are shared between the two wraps below: the tick
   -- wrap (world update) knows whether the player is actually running and
   -- how far they moved this tick; the frame wrap (camera/render) only
@@ -97,7 +104,7 @@ return function(mod)
   local BOB_PERIOD_PX = 20 -- world px of running per full bob cycle
   local BOB_FREQ = (2 * math.pi) / BOB_PERIOD_PX
 
-  local ds = mod.find("DRAMATIC_SHAPE")
+  local ds = mod.find("DRAMATIC_SHAPE") or mod.find("BATTLE_ART_VOXEL_FORK")
   if ds and ds.exports and ds.exports.lib and not ds.exports.lib._runningShoesHook then
     local FreeMove = ds.exports.lib.require("FreeMove")
     local FirstPerson = ds.exports.lib.require("FirstPerson")
@@ -167,10 +174,10 @@ return function(mod)
         return true
       end,
     }
-    -- only meaningful with dramatic-shape's first/third-person camera
-    -- installed -- ds is the same handle the integration block above
-    -- resolved once at load, so this stays in sync with whether that
-    -- block actually ran
+    -- only meaningful with a voxel mod's first/third-person camera
+    -- installed (dramatic-shape or its battle art voxel fork) -- ds is
+    -- the same handle the integration block above resolved once at
+    -- load, so this stays in sync with whether that block actually ran
     if ds then
       out[#out + 1] = {
         id = "running_shoes_view_bob",

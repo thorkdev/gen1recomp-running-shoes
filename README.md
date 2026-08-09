@@ -21,17 +21,6 @@ Hold B to run, once Mom gives you the shoes for helping Prof. Oak.
   recreation of Pokémon Red/Blue/Yellow. This mod needs your own legally
   obtained ROM already imported; it ships no ROM content of its own.
 
-## Install
-
-Drop this folder into your `gen1recomp` install's `mods/` directory:
-
-```sh
-git clone https://github.com/<you>/running_shoes mods/running_shoes
-```
-
-then enable it in `options.lua` (`mods = { running_shoes = true }`) or
-toggle it on in the in-game mod manager (**F10**).
-
 ## OPTIONS rows
 
 Both rows only appear once the shoes are actually unlocked — there's
@@ -41,21 +30,28 @@ nothing to toggle before then, so nothing shows up early.
   or off. OFF does not touch the quest: Mom still gives you the shoes and
   the unlock flag still gets set, walking just goes back to vanilla speed
   until you flip it back on.
-- **VIEW BOB** (ON/OFF, default ON) — only appears with dramatic-shape
-  installed (see below). Toggles the camera bob while running in
-  first/third person.
+- **VIEW BOB** (ON/OFF, default ON) — only appears with dramatic-shape or
+  its battle art voxel fork installed (see below). Toggles the camera bob
+  while running in first/third person.
 
-## Optional: dramatic-shape integration
+## Optional: voxel overworld integration
 
-[dramatic-shape](../dramatic-shape) replaces grid movement outright while
-its 1st/3rd-person camera rungs are active (`lib/FreeMove.lua`) — the
-player's position becomes continuous, steered by the camera, and never
-goes through `Player:beginStep`. That's the only place the engine's
-`movement.speed` hook fires from, so without this integration the Hold-B
-boost would silently do nothing the moment you switched to first or third
-person.
+dramatic-shape and its BATTLE_ART_VOXEL_FORK-1.7.6 fork both replace
+grid movement outright while their 1st/3rd-person camera rungs are active
+(`lib/FreeMove.lua`) — the player's position becomes continuous, steered
+by the camera, and never goes through `Player:beginStep`. That's the only
+place the engine's `movement.speed` hook fires from, so without this
+integration the Hold-B boost would silently do nothing the moment you
+switched to first or third person.
 
-If dramatic-shape (manifest id `DRAMATIC_SHAPE`) is installed, this mod:
+The fork rewrote the battle presentation, not this seam — its
+`FreeMove`/`FirstPerson` keep the same `WALK`/`BIKE` constants and
+`tick(state)`/`frame(me, cx, cy, vw, vh)` signatures as dramatic-shape, so
+one integration covers either. If dramatic-shape (manifest id
+`DRAMATIC_SHAPE`) is installed, this mod hooks into it; otherwise it falls
+back to the fork (manifest id `BATTLE_ART_VOXEL_FORK`) if that's installed
+instead. In practice only one of the two would ever be installed at once
+(same hotkeys, same overworld renderer), so this mod:
 
 - **Wraps `FreeMove.tick`** to scale its `WALK`/`BIKE` px-per-frame
   constants by the same run multiplier the grid hook uses, for the
@@ -69,17 +65,18 @@ If dramatic-shape (manifest id `DRAMATIC_SHAPE`) is installed, this mod:
   whatever surf-bob or ledge-hop lift is already in play, since `me` is a
   fresh pose table built fresh every frame.
 
-Both wraps reach dramatic-shape only through its own exported module
-namespace (`mod.exports.lib`, declared in its `main.lua`) — no engine file
-and no dramatic-shape file is edited. The integration is a no-op with
-dramatic-shape absent, and a hot-reload guard (`_runningShoesHook` on that
-namespace) keeps the wraps from stacking if this mod reloads during dev.
+Both wraps reach whichever voxel mod is present only through its own
+exported module namespace (`mod.exports.lib`, declared in its `main.lua`)
+— no engine file and no voxel mod file is edited. The integration is a
+no-op with neither installed, and a hot-reload guard (`_runningShoesHook`
+on that namespace) keeps the wraps from stacking if this mod reloads
+during dev.
 
 The manifest reflects this: `optional_dependencies` lists `DRAMATIC_SHAPE`
-so load order puts it first when both are present, and `permissions`
-declares `engine_internals` for the one direct `require("src.core.Game")`
-the wraps use to read `save.flags`/`input` — the same access `FreeMove.tick`
-itself already has.
+and `BATTLE_ART_VOXEL_FORK` so load order puts whichever is present first,
+and `permissions` declares `engine_internals` for the one direct
+`require("src.core.Game")` the wraps use to read `save.flags`/`input` —
+the same access `FreeMove.tick` itself already has.
 
 ## Credits
 
