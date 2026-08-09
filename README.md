@@ -5,7 +5,6 @@ Hold B to run, once Mom gives you the shoes for helping Prof. Oak.
 <img width="1024" height="768" alt="image" src="https://github.com/user-attachments/assets/353cda33-befd-4ba4-8304-e38fbddfda9e" />
 <img width="1024" height="768" alt="image" src="https://github.com/user-attachments/assets/ba6bf095-17b5-4c98-bef3-2ceb7a86ffa3" />
 <img width="1024" height="768" alt="image" src="https://github.com/user-attachments/assets/d112c7fd-bafe-4bec-b6b1-ae1eea0233ee" />
-<img width="1024" height="768" alt="image" src="https://github.com/user-attachments/assets/2dc9047b-0c2a-4dd5-b105-bd16637f8058" />
 
 ## What it does
 
@@ -30,13 +29,20 @@ nothing to toggle before then, so nothing shows up early.
   or off. OFF does not touch the quest: Mom still gives you the shoes and
   the unlock flag still gets set, walking just goes back to vanilla speed
   until you flip it back on.
+- **RUN SPEED** (1.5X/2X/3X, default 1.5X) — cycles the Hold-B speed
+  multiplier. 1.5X is the closest whole-frame speed under the bike's pace;
+  2X matches the bike, and 3X outruns it. Applies to both grid movement
+  and the voxel free-roam camera integration below.
 - **VIEW BOB** (ON/OFF, default ON) — only appears with dramatic-shape or
   its battle art voxel fork installed (see below). Toggles the camera bob
   while running in first/third person.
+- **BOB INTENSITY** (0.5X/1X/1.5X, default 1X) — only appears alongside
+  VIEW BOB. Scales how far the camera bobs; has no effect while VIEW BOB
+  is OFF.
 
 ## Optional: voxel overworld integration
 
-dramatic-shape and its BATTLE_ART_VOXEL_FORK-1.7.6 fork both replace
+dramatic-shape and its BATTLE_ART_VOXEL_FORK-1.7.x fork both replace
 grid movement outright while their 1st/3rd-person camera rungs are active
 (`lib/FreeMove.lua`) — the player's position becomes continuous, steered
 by the camera, and never goes through `Player:beginStep`. That's the only
@@ -61,9 +67,12 @@ instead. In practice only one of the two would ever be installed at once
   eye height (`me.lift`) while running, its phase driven by distance
   actually covered rather than wall-clock time — so the bob rate tracks
   speed the way classic FPS view-bob does, and freezes rather than
-  jitters when blocked mid-stride. It composes with (never overwrites)
-  whatever surf-bob or ledge-hop lift is already in play, since `me` is a
-  fresh pose table built fresh every frame.
+  jitters when blocked mid-stride. The phase is wrapped to `[0, 2*pi)`
+  every tick rather than left to grow forever, so it doesn't lose
+  floating-point precision (and drift or stutter) over a long run. It
+  composes with (never overwrites) whatever surf-bob or ledge-hop lift is
+  already in play, since `me` is a fresh pose table built fresh every
+  frame.
 
 Both wraps reach whichever voxel mod is present only through its own
 exported module namespace (`mod.exports.lib`, declared in its `main.lua`)

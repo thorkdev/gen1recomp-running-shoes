@@ -47,11 +47,20 @@ return function(mod)
   })
 
   -- ------- hold B to run, once unlocked -- faster than walking, slower
-  -- than the bike.  Speed here is frames-per-step (fewer = faster) and
-  -- has to land on a whole number, so 1.5x isn't exact: 16 walk frames /
-  -- 1.5 = 10.67, floored to 10 frames (an effective 1.6x -- the closest
-  -- whole-frame value under the bike's clean 2x/8-frame pace).
-  local RUN_SPEED = 1.5
+  -- than (or equal to) the bike, per the RUN SPEED OPTIONS row below.
+  -- Speed here is frames-per-step (fewer = faster) and has to land on a
+  -- whole number, so 1.5x isn't exact: 16 walk frames / 1.5 = 10.67,
+  -- floored to 10 frames (an effective 1.6x -- the closest whole-frame
+  -- value under the bike's clean 2x/8-frame pace). 2x and 3x divide
+  -- evenly, so those land exact.
+  local RUN_SPEEDS = { 1.5, 2, 3 }
+  local function getRunSpeed()
+    local speed = mod.save:get("speed", RUN_SPEEDS[1])
+    for _, s in ipairs(RUN_SPEEDS) do
+      if s == speed then return speed end
+    end
+    return RUN_SPEEDS[1]
+  end
   mod.hooks:wrap("movement.speed", function(next, frames, ctx)
     if ctx.onBike or ctx.surfing then return next(frames, ctx) end
     if not (ctx.save and ctx.save.flags and ctx.save.flags[UNLOCKED]) then
@@ -64,7 +73,7 @@ return function(mod)
       return next(frames, ctx)
     end
     if ctx.input and ctx.input.isDown and ctx.input:isDown("b") then
-      return math.max(1, math.floor(frames / RUN_SPEED))
+      return math.max(1, math.floor(frames / getRunSpeed()))
     end
     return next(frames, ctx)
   end)
@@ -100,9 +109,17 @@ return function(mod)
   -- place.
   local bobActive = false
   local bobPhase = 0
-  local BOB_AMPLITUDE = 1.2 -- world px of vertical eye travel
+  local BOB_AMPLITUDE = 1.2 -- world px of vertical eye travel, before intensity scaling
   local BOB_PERIOD_PX = 20 -- world px of running per full bob cycle
   local BOB_FREQ = (2 * math.pi) / BOB_PERIOD_PX
+  local BOB_INTENSITIES = { 0.5, 1, 1.5 }
+  local function getBobIntensity()
+    local level = mod.save:get("bobIntensity", BOB_INTENSITIES[2])
+    for _, v in ipairs(BOB_INTENSITIES) do
+      if v == level then return level end
+    end
+    return BOB_INTENSITIES[2]
+  end
 
   local ds = mod.find("DRAMATIC_SHAPE") or mod.find("BATTLE_ART_VOXEL_FORK")
   if ds and ds.exports and ds.exports.lib and not ds.exports.lib._runningShoesHook then
@@ -113,8 +130,8 @@ return function(mod)
     -- fresh on every call (see its own header comment on why they're set
     -- to mirror the grid walker's speeds 1:1). Scaling them for the
     -- duration of one tick and restoring right after is the free-walk
-    -- equivalent of movement.speed's per-step frame count: same RUN_SPEED,
-    -- same UNLOCKED/enabled gate, no dramatic-shape file touched.
+    -- equivalent of movement.speed's per-step frame count: same RUN SPEED
+    -- option, same UNLOCKED/enabled gate, no dramatic-shape file touched.
     local baseWalk, baseBike = FreeMove.WALK, FreeMove.BIKE
     local innerTick = FreeMove.tick
     function FreeMove.tick(state)
@@ -124,8 +141,9 @@ return function(mod)
       local running = unlocked and mod.save:get("enabled", true)
         and Game.input and Game.input.isDown and Game.input:isDown("b")
       if running then
-        FreeMove.WALK = baseWalk * RUN_SPEED
-        FreeMove.BIKE = baseBike * RUN_SPEED
+        local runSpeed = getRunSpeed()
+        FreeMove.WALK = baseWalk * runSpeed
+        FreeMove.BIKE = baseBike * runSpeed
       end
       local p = state.player
       local px0, py0 = p and p.px, p and p.py
@@ -135,7 +153,13 @@ return function(mod)
       bobActive = running and true or false
       if bobActive and p and px0 and p.px then
         local dx, dy = p.px - px0, p.py - py0
-        bobPhase = bobPhase + math.sqrt(dx * dx + dy * dy) * BOB_FREQ
+        -- Wrapped to [0, 2*pi) rather than left to grow forever: sin() of
+        -- an unbounded phase loses precision over a long run (hours of
+        -- holding B), which would make the bob cycle drift or stutter.
+        -- Wrapping every tick keeps the same distance-per-cycle mapping
+        -- indefinitely, since sin is 2*pi-periodic anyway.
+        bobPhase = (bobPhase + math.sqrt(dx * dx + dy * dy) * BOB_FREQ)
+          % (2 * math.pi)
       end
     end
 
@@ -146,7 +170,8 @@ return function(mod)
     local innerFrame = FirstPerson.frame
     function FirstPerson.frame(me, cx, cy, vw, vh)
       if bobActive and me and mod.save:get("viewBob", true) then
-        me.lift = (me.lift or 0) + BOB_AMPLITUDE * math.sin(bobPhase)
+        me.lift = (me.lift or 0)
+          + BOB_AMPLITUDE * getBobIntensity() * math.sin(bobPhase)
       end
       return innerFrame(me, cx, cy, vw, vh)
     end
@@ -174,6 +199,22 @@ return function(mod)
         return true
       end,
     }
+    out[#out + 1] = {
+      id = "running_shoes_speed",
+      label = "RUN SPEED",
+      value = function()
+        return string.format("%gX", getRunSpeed())
+      end,
+      step = function()
+        local current = getRunSpeed()
+        local idx = 1
+        for i, s in ipairs(RUN_SPEEDS) do
+          if s == current then idx = i break end
+        end
+        mod.save:set("speed", RUN_SPEEDS[(idx % #RUN_SPEEDS) + 1])
+        return true
+      end,
+    }
     -- only meaningful with a voxel mod's first/third-person camera
     -- installed (dramatic-shape or its battle art voxel fork) -- ds is
     -- the same handle the integration block above resolved once at
@@ -187,6 +228,22 @@ return function(mod)
         end,
         step = function()
           mod.save:set("viewBob", not mod.save:get("viewBob", true))
+          return true
+        end,
+      }
+      out[#out + 1] = {
+        id = "running_shoes_bob_intensity",
+        label = "BOB INTENSITY",
+        value = function()
+          return string.format("%gX", getBobIntensity())
+        end,
+        step = function()
+          local current = getBobIntensity()
+          local idx = 1
+          for i, v in ipairs(BOB_INTENSITIES) do
+            if v == current then idx = i break end
+          end
+          mod.save:set("bobIntensity", BOB_INTENSITIES[(idx % #BOB_INTENSITIES) + 1])
           return true
         end,
       }
